@@ -1,0 +1,42 @@
+services:
+  db:
+    image: mysql:8.0
+    container_name: mama-daj-mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: wordpress_root_password
+      MYSQL_DATABASE: wordpress
+      MYSQL_USER: wordpress
+      MYSQL_PASSWORD: wordpress_password
+    volumes:
+      - db_data:/var/lib/mysql
+    networks:
+      - wordpress-network
+
+  wordpress:
+    depends_on:
+      - db
+    image: wordpress:latest
+    container_name: mama-daj-wordpress
+    restart: always
+    ports:
+      - "8080:80"
+    environment:
+      WORDPRESS_DB_HOST: db:3306
+      WORDPRESS_DB_USER: wordpress
+      WORDPRESS_DB_PASSWORD: wordpress_password
+      WORDPRESS_DB_NAME: wordpress
+    volumes:
+      - wordpress_data:/var/www/html
+    networks:
+      - wordpress-network
+
+volumes:
+  db_data:
+    driver: local
+  wordpress_data:
+    driver: local
+
+networks:
+  wordpress-network:
+    driver: bridge
