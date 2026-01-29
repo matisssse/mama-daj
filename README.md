@@ -7,12 +7,26 @@ WordPress сайт с MySQL в Docker Compose.
 - Docker
 - Docker Compose
 
+## Настройка
+
+### Первичная установка
+
+1. Скопируйте файл с примером переменных окружения:
+```bash
+cp .env.example .env
+```
+
+2. **ВАЖНО: Измените пароли в файле .env перед запуском в продакшене!** Отредактируйте файл `.env` и установите безопасные пароли:
+```bash
+nano .env
+```
+
 ## Запуск
 
 Для запуска WordPress сайта выполните:
 
 ```bash
-docker-compose up -d
+docker compose up -d
 ```
 
 Сайт будет доступен по адресу: http://localhost:8080
@@ -22,7 +36,7 @@ docker-compose up -d
 Для остановки сервисов:
 
 ```bash
-docker-compose down
+docker compose down
 ```
 
 ## Персистентность данных
@@ -38,13 +52,29 @@ docker-compose down
 Для полного удаления всех данных:
 
 ```bash
-docker-compose down -v
+docker compose down -v
 ```
 
 ## Конфигурация
 
-Настройки базы данных можно изменить в файле `docker-compose.yml`:
+### Переменные окружения
+
+Настройки хранятся в файле `.env` (создается из `.env.example`):
+
+**Настройки MySQL:**
 - `MYSQL_ROOT_PASSWORD` - пароль root пользователя MySQL
 - `MYSQL_DATABASE` - имя базы данных
 - `MYSQL_USER` - имя пользователя базы данных
 - `MYSQL_PASSWORD` - пароль пользователя базы данных
+
+**Настройки WordPress:**
+- `WORDPRESS_DB_HOST` - хост базы данных (обычно `db:3306`)
+- `WORDPRESS_DB_NAME` - имя базы данных WordPress
+- `WORDPRESS_DB_USER` - имя пользователя базы данных
+- `WORDPRESS_DB_PASSWORD` - пароль пользователя базы данных
+
+### Безопасность
+
+⚠️ **ВНИМАНИЕ:** Файл `.env` содержит конфиденциальные данные и не должен коммититься в Git. Он уже добавлен в `.gitignore`.
+
+Перед развертыванием в продакшене обязательно измените все пароли по умолчанию на надежные!
