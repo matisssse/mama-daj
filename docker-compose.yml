@@ -16,6 +16,7 @@ services:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       timeout: 20s
       retries: 10
+      start_period: 30s
 
   wordpress:
     depends_on:
