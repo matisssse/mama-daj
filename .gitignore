@@ -9,3 +9,10 @@
 
 # Article service data
 article-service/data/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
