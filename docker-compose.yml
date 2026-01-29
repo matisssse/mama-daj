@@ -37,10 +37,46 @@ services:
     networks:
       - wordpress-network
 
+  article-service:
+    build:
+      context: ./article-service
+      dockerfile: Dockerfile
+    container_name: mama-daj-article-service
+    restart: always
+    depends_on:
+      - wordpress
+    environment:
+      # OpenAI API для рерайта статей
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-3.5-turbo}
+      
+      # WordPress настройки
+      WORDPRESS_URL: ${WORDPRESS_URL:-http://wordpress}
+      WORDPRESS_USER: ${WORDPRESS_API_USER}
+      WORDPRESS_PASSWORD: ${WORDPRESS_API_PASSWORD}
+      WORDPRESS_POST_STATUS: ${WORDPRESS_POST_STATUS:-draft}
+      WORDPRESS_DEFAULT_CATEGORY: ${WORDPRESS_DEFAULT_CATEGORY:-1}
+      
+      # Настройки расписания
+      SCHEDULE_TIME: ${SCHEDULE_TIME:-03:00}
+      RUN_ON_STARTUP: ${RUN_ON_STARTUP:-false}
+      PUBLISH_DELAY_SECONDS: ${PUBLISH_DELAY_SECONDS:-300}
+      
+      # Дополнительные настройки
+      SITES_CONFIG_FILE: /app/config/sites.json
+      ADD_SOURCE_LINK: ${ADD_SOURCE_LINK:-false}
+    volumes:
+      - ./article-service/config:/app/config:ro
+      - article_service_data:/app/data
+    networks:
+      - wordpress-network
+
 volumes:
   db_data:
     driver: local
   wordpress_data:
+    driver: local
+  article_service_data:
     driver: local
 
 networks:

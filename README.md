@@ -1,6 +1,12 @@
 # mama-daj
 
-WordPress сайт с MySQL в Docker Compose.
+WordPress сайт с MySQL в Docker Compose и автоматическим сервисом парсинга и публикации статей.
+
+## Компоненты
+
+- **WordPress** - CMS для сайта
+- **MySQL** - база данных
+- **Article Service** - автоматический парсинг, рерайт и публикация статей
 
 ## Требования
 
@@ -78,3 +84,83 @@ docker compose down -v
 ⚠️ **ВНИМАНИЕ:** Файл `.env` содержит конфиденциальные данные и не должен коммититься в Git. Он уже добавлен в `.gitignore`.
 
 Перед развертыванием в продакшене обязательно измените все пароли по умолчанию на надежные!
+
+## Article Service - Автоматический парсинг и публикация статей
+
+Проект включает в себя сервис для автоматического парсинга статей с сайтов, их рерайта с использованием AI и публикации на WordPress.
+
+### Возможности
+
+- 🤖 Автоматический парсинг статей с различных сайтов
+- ✍️ AI-рерайт для создания уникального контента (OpenAI)
+- 📝 Автоматическая публикация на WordPress
+- ⏰ Публикация по расписанию
+- 🎯 SEO-оптимизация
+- 🖼️ Автоматическая загрузка изображений
+
+### Быстрый старт
+
+1. Добавьте сайты для парсинга в `article-service/config/sites.json`:
+```json
+{
+  "sites": [
+    {
+      "name": "Название сайта",
+      "url": "https://example.com/blog",
+      "max_articles": 5
+    }
+  ]
+}
+```
+
+2. Настройте переменные окружения в `.env`:
+```env
+# OpenAI API (получите на https://platform.openai.com/)
+OPENAI_API_KEY=your_openai_api_key
+
+# WordPress API (создайте Application Password в профиле WordPress)
+WORDPRESS_API_USER=your_username
+WORDPRESS_API_PASSWORD=your_application_password
+
+# Расписание (время запуска парсинга)
+SCHEDULE_TIME=03:00
+```
+
+3. Запустите все сервисы:
+```bash
+docker compose up -d
+```
+
+### Подробная документация
+
+Полная документация по настройке и использованию Article Service находится в [article-service/README.md](article-service/README.md).
+
+**Важные темы:**
+- Настройка OpenAI API
+- Создание Application Password в WordPress
+- Конфигурация сайтов для парсинга
+- SEO-оптимизация и лучшие практики
+- Устранение неполадок
+
+## Дополнительная информация
+
+### Порты
+- WordPress: http://localhost:8080
+- MySQL: порт 3306 (доступен только внутри Docker сети)
+
+### Volumes
+- `db_data` - данные MySQL
+- `wordpress_data` - файлы WordPress
+- `article_service_data` - данные сервиса парсинга статей
+
+### Логи
+```bash
+# Все сервисы
+docker compose logs -f
+
+# Только article-service
+docker compose logs -f article-service
+
+# Только WordPress
+docker compose logs -f wordpress
+```
