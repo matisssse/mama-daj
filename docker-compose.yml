@@ -37,10 +37,68 @@ services:
     networks:
       - wordpress-network
 
+  ollama:
+    image: ollama/ollama:latest
+    container_name: mama-daj-ollama
+    restart: always
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    networks:
+      - wordpress-network
+    # Раскомментируйте для GPU поддержки (требуется nvidia-docker)
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+
+  article-service:
+    build:
+      context: ./article-service
+      dockerfile: Dockerfile
+    container_name: mama-daj-article-service
+    restart: always
+    depends_on:
+      - wordpress
+      - ollama
+    environment:
+      # Ollama настройки для локальной LLM
+      OLLAMA_URL: ${OLLAMA_URL:-http://ollama:11434}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2}
+      
+      # WordPress настройки
+      WORDPRESS_URL: ${WORDPRESS_URL:-http://wordpress}
+      WORDPRESS_API_USER: ${WORDPRESS_API_USER}
+      WORDPRESS_API_PASSWORD: ${WORDPRESS_API_PASSWORD}
+      WORDPRESS_POST_STATUS: ${WORDPRESS_POST_STATUS:-draft}
+      WORDPRESS_DEFAULT_CATEGORY: ${WORDPRESS_DEFAULT_CATEGORY:-1}
+      
+      # Настройки расписания
+      SCHEDULE_TIME: ${SCHEDULE_TIME:-03:00}
+      RUN_ON_STARTUP: ${RUN_ON_STARTUP:-false}
+      PUBLISH_DELAY_SECONDS: ${PUBLISH_DELAY_SECONDS:-300}
+      
+      # Дополнительные настройки
+      SITES_CONFIG_FILE: /app/config/sites.json
+      ADD_SOURCE_LINK: ${ADD_SOURCE_LINK:-false}
+    volumes:
+      - ./article-service/config:/app/config:ro
+      - article_service_data:/app/data
+    networks:
+      - wordpress-network
+
 volumes:
   db_data:
     driver: local
   wordpress_data:
+    driver: local
+  article_service_data:
+    driver: local
+  ollama_data:
     driver: local
 
 networks:

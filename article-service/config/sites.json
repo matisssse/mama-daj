@@ -1,0 +1,14 @@
+{
+  "sites": [
+    {
+      "name": "Пример сайта 1",
+      "url": "https://example.com/blog",
+      "max_articles": 5
+    },
+    {
+      "name": "Пример сайта 2",
+      "url": "https://example.org/news",
+      "max_articles": 3
+    }
+  ]
+}
