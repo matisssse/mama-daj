@@ -1,11 +1,11 @@
 # Article Service - Сервис парсинга и публикации статей
 
-Этот сервис автоматически парсит статьи с указанных сайтов, делает их рерайт с использованием AI и публикует на WordPress по расписанию.
+Этот сервис автоматически парсит статьи с указанных сайтов, делает их рерайт с использованием **локальной LLM через Ollama** и публикует на WordPress по расписанию.
 
 ## Возможности
 
 - **Автоматический парсинг** статей с различных сайтов
-- **AI-рерайт** контента для уникальности и SEO-оптимизации (OpenAI API)
+- **AI-рерайт** с помощью локальной LLM (Ollama) для уникальности и SEO
 - **Автоматическая публикация** на WordPress через REST API
 - **Планировщик** для публикации по расписанию
 - **Умная обработка**:
@@ -17,6 +17,14 @@
   - Уникальный контент после рерайта
   - Естественное распределение публикаций
   - Оптимизированные заголовки
+
+## Преимущества локальной LLM
+
+🆓 **Бесплатно** - не нужно платить за OpenAI API  
+🔒 **Приватность** - все данные остаются на вашем сервере  
+♾️ **Без лимитов** - нет ограничений на количество запросов  
+📴 **Офлайн работа** - не требуется интернет после загрузки модели  
+⚙️ **Настраиваемость** - выбирайте любую модель из библиотеки Ollama
 
 ## Конфигурация
 
@@ -45,13 +53,27 @@
 
 Настройте следующие переменные в файле `.env`:
 
-#### OpenAI API (обязательно)
+#### Ollama (локальная LLM)
 ```env
-OPENAI_API_KEY=your_openai_api_key_here
-OPENAI_MODEL=gpt-3.5-turbo
+OLLAMA_URL=http://ollama:11434
+OLLAMA_MODEL=llama3.2
 ```
 
-Получите API ключ на https://platform.openai.com/api-keys
+**Доступные модели:**
+- `llama3.2` (3B) - Быстрая и легкая
+- `mistral` (7B) - Отличное качество
+- `qwen2.5` (7B) - Превосходно для текста
+- `llama3.1` (8B) - Очень качественная
+
+**Загрузка модели:**
+```bash
+docker compose exec ollama ollama pull llama3.2
+```
+
+Проверка установленных моделей:
+```bash
+docker compose exec ollama ollama list
+```
 
 #### WordPress API (обязательно)
 ```env
@@ -80,7 +102,41 @@ SCHEDULE_TIME=03:00                  # Время запуска (HH:MM)
 RUN_ON_STARTUP=false                 # Запуск при старте контейнера
 ```
 
-### 3. Активация WordPress REST API
+### 3. Выбор модели для Ollama
+
+#### Рекомендации по выбору:
+
+**Для слабых серверов (4-8GB RAM):**
+- `llama3.2` (3B) - ~2GB памяти
+- `phi3` (3.8B) - ~2.5GB памяти
+
+**Оптимальный баланс (8-16GB RAM):**
+- `mistral` (7B) - ~4.5GB памяти, отличное качество
+- `qwen2.5` (7B) - ~4.5GB памяти, превосходно для текста
+- `gemma2` (9B) - ~5.5GB памяти
+
+**Для мощных серверов (16GB+ RAM):**
+- `llama3.1` (8B) - ~5GB памяти
+- `mixtral` (47B) - ~26GB памяти (требует много ресурсов)
+
+#### Смена модели:
+
+1. Загрузите новую модель:
+```bash
+docker compose exec ollama ollama pull qwen2.5
+```
+
+2. Обновите `.env`:
+```env
+OLLAMA_MODEL=qwen2.5
+```
+
+3. Перезапустите сервис:
+```bash
+docker compose restart article-service
+```
+
+### 4. Активация WordPress REST API
 
 Убедитесь, что WordPress REST API активен:
 
@@ -189,10 +245,62 @@ docker compose logs -f article-service
 
 ## Устранение неполадок
 
+### Проблема: Ollama недоступен
+```bash
+# Проверьте статус
+docker compose ps ollama
+
+# Посмотрите логи
+docker compose logs ollama
+
+# Перезапустите
+docker compose restart ollama
+```
+
+### Проблема: Модель не найдена
+```bash
+# Проверьте установленные модели
+docker compose exec ollama ollama list
+
+# Загрузите нужную модель
+docker compose exec ollama ollama pull llama3.2
+```
+
+### Проблема: Медленная генерация текста
+**Причины и решения:**
+- **Модель слишком большая** → Используйте более легкую модель (llama3.2 вместо mistral)
+- **Недостаточно RAM** → Добавьте больше памяти или используйте модель меньшего размера
+- **Нет GPU** → Настройте GPU поддержку в docker-compose.yml
+- **Первый запрос** → Первая генерация всегда медленнее (модель загружается в память)
+
+**Оптимизация:**
+1. Используйте GPU если доступно
+2. Выбирайте модели 3-7B для лучшей производительности
+3. Убедитесь, что у сервера достаточно RAM
+4. Закройте другие приложения, потребляющие память
+
+### Проблема: Out of memory (не хватает памяти)
+```bash
+# Проверьте использование памяти
+docker stats mama-daj-ollama
+
+# Решения:
+# 1. Используйте более легкую модель
+docker compose exec ollama ollama pull llama3.2
+
+# 2. Удалите неиспользуемые модели
+docker compose exec ollama ollama list
+docker compose exec ollama ollama rm <model_name>
+```
+
+### Проблема: Плохое качество рерайта
+**Решения:**
+1. Используйте более качественную модель (mistral, qwen2.5)
+2. Проверьте, что модель правильно загружена
+3. Увеличьте температуру генерации (в rewriter.py)
+
 ### Проблема: API ключ OpenAI не работает
-- Проверьте баланс на https://platform.openai.com/account/billing
-- Убедитесь, что ключ правильно скопирован в `.env`
-- Проверьте лимиты API
+Этот вопрос больше не актуален - сервис использует локальную LLM через Ollama!
 
 ### Проблема: Не могу опубликовать на WordPress
 - Убедитесь, что используете Application Password, а не обычный пароль
@@ -208,6 +316,80 @@ docker compose logs -f article-service
 - Проверьте формат `SCHEDULE_TIME` (должен быть HH:MM)
 - Посмотрите логи на ошибки
 - Убедитесь, что контейнер запущен: `docker compose ps`
+
+## Системные требования
+
+### Минимальные требования:
+- **CPU:** 4 ядра
+- **RAM:** 8GB (для моделей 3-7B)
+- **Диск:** 10GB свободного места
+- **Интернет:** Только для загрузки моделей
+
+### Рекомендуемые требования:
+- **CPU:** 8 ядер
+- **RAM:** 16GB (для моделей 7-13B)
+- **GPU:** Опционально, значительно ускоряет генерацию
+- **Диск:** 20GB свободного места
+
+### GPU поддержка (опционально):
+
+Для использования GPU раскомментируйте секцию в `docker-compose.yml`:
+
+```yaml
+  ollama:
+    # ...
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+```
+
+**Требования для GPU:**
+- NVIDIA GPU с поддержкой CUDA
+- Установленный nvidia-docker2
+- Драйверы NVIDIA
+
+**Установка nvidia-docker (Ubuntu):**
+```bash
+# Добавить репозиторий
+distribution=$(. /etc/os-release;echo $ID$VERSION_ID)
+curl -s -L https://nvidia.github.io/nvidia-docker/gpgkey | sudo apt-key add -
+curl -s -L https://nvidia.github.io/nvidia-docker/$distribution/nvidia-docker.list | sudo tee /etc/apt/sources.list.d/nvidia-docker.list
+
+# Установить
+sudo apt-get update
+sudo apt-get install -y nvidia-docker2
+sudo systemctl restart docker
+```
+
+## Мониторинг производительности
+
+### Использование ресурсов:
+```bash
+# Все контейнеры
+docker stats
+
+# Только Ollama
+docker stats mama-daj-ollama
+
+# Проверка доступной памяти на хосте
+free -h
+```
+
+### Логи для отладки:
+```bash
+# Логи article-service
+docker compose logs -f article-service
+
+# Логи Ollama
+docker compose logs -f ollama
+
+# Последние ошибки
+docker compose logs --tail=50 article-service | grep ERROR
+```
 
 ## Разработка
 
