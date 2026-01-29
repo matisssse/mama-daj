@@ -37,6 +37,25 @@ services:
     networks:
       - wordpress-network
 
+  ollama:
+    image: ollama/ollama:latest
+    container_name: mama-daj-ollama
+    restart: always
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    networks:
+      - wordpress-network
+    # Раскомментируйте для GPU поддержки (требуется nvidia-docker)
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+
   article-service:
     build:
       context: ./article-service
@@ -45,10 +64,11 @@ services:
     restart: always
     depends_on:
       - wordpress
+      - ollama
     environment:
-      # OpenAI API для рерайта статей
-      OPENAI_API_KEY: ${OPENAI_API_KEY}
-      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-3.5-turbo}
+      # Ollama настройки для локальной LLM
+      OLLAMA_URL: ${OLLAMA_URL:-http://ollama:11434}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2}
       
       # WordPress настройки
       WORDPRESS_URL: ${WORDPRESS_URL:-http://wordpress}
@@ -77,6 +97,8 @@ volumes:
   wordpress_data:
     driver: local
   article_service_data:
+    driver: local
+  ollama_data:
     driver: local
 
 networks:

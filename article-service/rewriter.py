@@ -1,27 +1,100 @@
 """
-Модуль для рерайта статей с использованием AI
+Модуль для рерайта статей с использованием AI (локальная LLM через Ollama)
 """
 
 import os
 import logging
-import openai
+import requests
 import time
+import json
 
 logger = logging.getLogger(__name__)
 
 
 class ArticleRewriter:
-    """Класс для рерайта статей с использованием OpenAI API"""
+    """Класс для рерайта статей с использованием локальной LLM через Ollama"""
     
     def __init__(self):
-        self.api_key = os.getenv('OPENAI_API_KEY')
-        if not self.api_key:
-            logger.warning("OPENAI_API_KEY не установлен. Рерайт будет недоступен.")
-        else:
-            openai.api_key = self.api_key
-        
-        self.model = os.getenv('OPENAI_MODEL', 'gpt-3.5-turbo')
+        # Настройки Ollama
+        self.ollama_url = os.getenv('OLLAMA_URL', 'http://ollama:11434')
+        self.model = os.getenv('OLLAMA_MODEL', 'llama3.2')
         self.max_retries = 3
+        
+        # Проверяем доступность Ollama
+        self._check_ollama_availability()
+    
+    def _check_ollama_availability(self):
+        """Проверяет доступность Ollama API"""
+        try:
+            response = requests.get(f"{self.ollama_url}/api/tags", timeout=5)
+            if response.status_code == 200:
+                models = response.json().get('models', [])
+                model_names = [m.get('name', '') for m in models]
+                logger.info(f"Ollama доступен. Доступные модели: {model_names}")
+                
+                # Проверяем наличие нужной модели
+                if not any(self.model in name for name in model_names):
+                    logger.warning(f"Модель {self.model} не найдена. Доступные модели: {model_names}")
+                    logger.warning(f"Выполните: docker compose exec ollama ollama pull {self.model}")
+            else:
+                logger.warning(f"Ollama недоступен (статус {response.status_code})")
+        except Exception as e:
+            logger.warning(f"Не удалось подключиться к Ollama: {e}")
+            logger.warning("Убедитесь, что сервис Ollama запущен")
+    
+    def _call_ollama(self, prompt, system_prompt, max_tokens=2000, temperature=0.8):
+        """
+        Вызывает Ollama API для генерации текста
+        
+        Args:
+            prompt: Текст запроса
+            system_prompt: Системный промпт
+            max_tokens: Максимальное количество токенов в ответе
+            temperature: Температура генерации (0.0-1.0)
+            
+        Returns:
+            str: Сгенерированный текст
+        """
+        url = f"{self.ollama_url}/api/generate"
+        
+        # Формируем полный промпт с системным сообщением
+        full_prompt = f"{system_prompt}\n\n{prompt}"
+        
+        payload = {
+            "model": self.model,
+            "prompt": full_prompt,
+            "stream": False,
+            "options": {
+                "temperature": temperature,
+                "num_predict": max_tokens,
+            }
+        }
+        
+        for attempt in range(self.max_retries):
+            try:
+                response = requests.post(
+                    url,
+                    json=payload,
+                    timeout=120  # Увеличенный таймаут для локальной генерации
+                )
+                
+                if response.status_code == 200:
+                    result = response.json()
+                    return result.get('response', '').strip()
+                else:
+                    logger.error(f"Ошибка Ollama API (статус {response.status_code}): {response.text}")
+                    
+            except requests.exceptions.Timeout:
+                logger.error(f"Таймаут при обращении к Ollama (попытка {attempt + 1})")
+            except Exception as e:
+                logger.error(f"Ошибка при обращении к Ollama (попытка {attempt + 1}): {e}")
+            
+            if attempt < self.max_retries - 1:
+                wait_time = 2 ** attempt
+                logger.info(f"Ожидание {wait_time} секунд перед повтором...")
+                time.sleep(wait_time)
+        
+        return None
     
     def rewrite(self, article):
         """
@@ -33,10 +106,6 @@ class ArticleRewriter:
         Returns:
             Словарь с переписанной статьей
         """
-        if not self.api_key:
-            logger.error("Невозможно выполнить рерайт: API ключ не установлен")
-            return article
-        
         try:
             # Рерайт заголовка
             new_title = self._rewrite_title(article['title'])
@@ -57,36 +126,26 @@ class ArticleRewriter:
     
     def _rewrite_title(self, title):
         """Переписывает заголовок статьи"""
+        system_prompt = "Ты профессиональный копирайтер и SEO-специалист."
+        
         prompt = f"""Перепиши этот заголовок статьи, сохраняя смысл, но используя другие слова и структуру.
 Заголовок должен быть привлекательным, SEO-оптимизированным и уникальным.
 Верни только новый заголовок без дополнительных объяснений.
 
 Оригинальный заголовок: {title}
-"""
+
+Новый заголовок:"""
         
-        for attempt in range(self.max_retries):
-            try:
-                response = openai.ChatCompletion.create(
-                    model=self.model,
-                    messages=[
-                        {"role": "system", "content": "Ты профессиональный копирайтер и SEO-специалист."},
-                        {"role": "user", "content": prompt}
-                    ],
-                    max_tokens=100,
-                    temperature=0.8,
-                )
-                
-                new_title = response.choices[0].message.content.strip()
-                logger.info(f"Заголовок переписан: {title} -> {new_title}")
-                return new_title
-            
-            except Exception as e:
-                logger.error(f"Ошибка рерайта заголовка (попытка {attempt + 1}): {e}")
-                if attempt < self.max_retries - 1:
-                    time.sleep(2 ** attempt)  # Экспоненциальная задержка
-                else:
-                    logger.warning("Используется оригинальный заголовок")
-                    return title
+        new_title = self._call_ollama(prompt, system_prompt, max_tokens=100, temperature=0.8)
+        
+        if new_title:
+            # Удаляем возможные лишние символы
+            new_title = new_title.strip().strip('"\'')
+            logger.info(f"Заголовок переписан: {title} -> {new_title}")
+            return new_title
+        else:
+            logger.warning("Используется оригинальный заголовок")
+            return title
     
     def _rewrite_content(self, content, title):
         """Переписывает контент статьи"""
@@ -137,6 +196,8 @@ class ArticleRewriter:
         if is_last:
             context += "Это последняя часть статьи. "
         
+        system_prompt = "Ты профессиональный копирайтер, специализирующийся на создании уникального SEO-оптимизированного контента."
+        
         prompt = f"""{context}
 Перепиши следующий текст статьи, полностью изменяя формулировки, но сохраняя все важные факты и смысл.
 
@@ -151,28 +212,14 @@ class ArticleRewriter:
 
 Оригинальный текст:
 {text}
-"""
+
+Переписанный текст:"""
         
-        for attempt in range(self.max_retries):
-            try:
-                response = openai.ChatCompletion.create(
-                    model=self.model,
-                    messages=[
-                        {"role": "system", "content": "Ты профессиональный копирайтер, специализирующийся на создании уникального SEO-оптимизированного контента."},
-                        {"role": "user", "content": prompt}
-                    ],
-                    max_tokens=2000,
-                    temperature=0.8,
-                )
-                
-                rewritten_text = response.choices[0].message.content.strip()
-                logger.info(f"Часть контента переписана ({len(text)} -> {len(rewritten_text)} символов)")
-                return rewritten_text
-            
-            except Exception as e:
-                logger.error(f"Ошибка рерайта контента (попытка {attempt + 1}): {e}")
-                if attempt < self.max_retries - 1:
-                    time.sleep(2 ** attempt)
-                else:
-                    logger.warning("Используется оригинальный текст")
-                    return text
+        rewritten_text = self._call_ollama(prompt, system_prompt, max_tokens=2000, temperature=0.8)
+        
+        if rewritten_text:
+            logger.info(f"Часть контента переписана ({len(text)} -> {len(rewritten_text)} символов)")
+            return rewritten_text
+        else:
+            logger.warning("Используется оригинальный текст")
+            return text
