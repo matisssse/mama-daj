@@ -15,13 +15,22 @@ from rewriter import ArticleRewriter
 from publisher import WordPressPublisher
 
 # Настройка логирования
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
+try:
+    # Создаем директорию для логов если не существует
+    os.makedirs('/var/log', exist_ok=True)
+    log_handlers = [
         logging.FileHandler('/var/log/article-service.log'),
         logging.StreamHandler()
     ]
+except (PermissionError, OSError) as e:
+    # Если нет доступа к /var/log, логируем только в консоль
+    print(f"Предупреждение: не удалось создать файл логов: {e}")
+    log_handlers = [logging.StreamHandler()]
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=log_handlers
 )
 
 logger = logging.getLogger(__name__)
@@ -36,24 +45,25 @@ class ArticleService:
         self.publisher = WordPressPublisher()
         self.sites_file = os.getenv('SITES_CONFIG_FILE', '/app/config/sites.json')
         self.processed_articles_file = '/app/data/processed_articles.json'
-        self.processed_articles = self._load_processed_articles()
+        self.processed_articles = self._load_processed_articles()  # set для быстрого поиска
         
     def _load_processed_articles(self):
         """Загружает список уже обработанных статей"""
         try:
             if os.path.exists(self.processed_articles_file):
                 with open(self.processed_articles_file, 'r', encoding='utf-8') as f:
-                    return json.load(f)
+                    data = json.load(f)
+                    return set(data)  # Используем set для быстрого поиска
         except Exception as e:
             logger.error(f"Ошибка загрузки списка обработанных статей: {e}")
-        return []
+        return set()
     
     def _save_processed_articles(self):
         """Сохраняет список обработанных статей"""
         try:
             os.makedirs(os.path.dirname(self.processed_articles_file), exist_ok=True)
-            with open(self.processed_articles_file, 'r', encoding='utf-8') as f:
-                json.dump(self.processed_articles, f, ensure_ascii=False, indent=2)
+            with open(self.processed_articles_file, 'w', encoding='utf-8') as f:
+                json.dump(list(self.processed_articles), f, ensure_ascii=False, indent=2)
         except Exception as e:
             logger.error(f"Ошибка сохранения списка обработанных статей: {e}")
     
@@ -108,14 +118,15 @@ class ArticleService:
                         published = self.publisher.publish(rewritten_article)
                         
                         if published:
-                            self.processed_articles.append(article_url)
+                            self.processed_articles.add(article_url)
                             self._save_processed_articles()
                             logger.info(f"Статья успешно опубликована: {rewritten_article.get('title')}")
                             
-                            # Задержка между публикациями для естественности
-                            delay = int(os.getenv('PUBLISH_DELAY_SECONDS', '300'))
-                            logger.info(f"Ожидание {delay} секунд перед следующей публикацией...")
-                            time.sleep(delay)
+                            # Задержка между публикациями для естественности (но не после последней)
+                            if article != articles[-1]:  # Не ждём после последней статьи
+                                delay = int(os.getenv('PUBLISH_DELAY_SECONDS', '300'))
+                                logger.info(f"Ожидание {delay} секунд перед следующей публикацией...")
+                                time.sleep(delay)
                         else:
                             logger.error(f"Не удалось опубликовать статью: {rewritten_article.get('title')}")
                     
@@ -133,6 +144,18 @@ class ArticleService:
         """Запуск сервиса с расписанием"""
         # Получаем расписание из переменных окружения
         schedule_time = os.getenv('SCHEDULE_TIME', '03:00')  # По умолчанию в 3 часа ночи
+        
+        # Валидация формата времени
+        try:
+            time_parts = schedule_time.split(':')
+            if len(time_parts) != 2:
+                raise ValueError("Неверный формат времени")
+            hour, minute = int(time_parts[0]), int(time_parts[1])
+            if not (0 <= hour <= 23 and 0 <= minute <= 59):
+                raise ValueError("Время вне допустимого диапазона")
+        except (ValueError, IndexError) as e:
+            logger.error(f"Неверный формат SCHEDULE_TIME '{schedule_time}'. Используйте формат HH:MM (например, '03:00')")
+            raise ValueError(f"Неверный формат SCHEDULE_TIME: {e}")
         
         logger.info(f"Сервис запущен. Расписание: каждый день в {schedule_time}")
         

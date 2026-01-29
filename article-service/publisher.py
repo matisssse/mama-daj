@@ -16,11 +16,11 @@ class WordPressPublisher:
     
     def __init__(self):
         self.wp_url = os.getenv('WORDPRESS_URL')
-        self.wp_user = os.getenv('WORDPRESS_USER')
-        self.wp_password = os.getenv('WORDPRESS_PASSWORD')
+        self.wp_user = os.getenv('WORDPRESS_API_USER')
+        self.wp_password = os.getenv('WORDPRESS_API_PASSWORD')
         
         if not all([self.wp_url, self.wp_user, self.wp_password]):
-            logger.error("Не все переменные WordPress настроены (WORDPRESS_URL, WORDPRESS_USER, WORDPRESS_PASSWORD)")
+            logger.error("Не все переменные WordPress настроены (WORDPRESS_URL, WORDPRESS_API_USER, WORDPRESS_API_PASSWORD)")
         
         self.api_url = urljoin(self.wp_url, '/wp-json/wp/v2/')
         self.auth = self._get_auth_header()
@@ -168,7 +168,7 @@ class WordPressPublisher:
             response = requests.get(
                 urljoin(self.api_url, 'posts'),
                 headers=headers,
-                timeout=10
+                timeout=30
             )
             
             if response.status_code == 200:
