@@ -1,11 +1,12 @@
 # mama-daj
 
-WordPress сайт с MySQL в Docker Compose.
+WordPress сайт с MySQL в Docker Compose с nginx reverse proxy и HTTPS.
 
 ## Требования
 
 - Docker
 - Docker Compose
+- SSL сертификаты Let's Encrypt (расположены в `/etc/letsencrypt/live/mama-daj.ru/`)
 
 ## Настройка
 
@@ -23,13 +24,32 @@ nano .env
 
 ## Запуск
 
+### Перед первым запуском
+
+Убедитесь, что SSL сертификаты установлены в `/etc/letsencrypt/live/mama-daj.ru/`:
+- `fullchain.pem`
+- `privkey.pem`
+
+### Запуск сервисов
+
 Для запуска WordPress сайта выполните:
 
 ```bash
 docker compose up -d
 ```
 
-Сайт будет доступен по адресу: http://localhost:8080
+Сайт будет доступен по адресу:
+- https://mama-daj.ru (основной домен)
+- http://mama-daj.ru (автоматически перенаправляется на HTTPS)
+- https://www.mama-daj.ru (автоматически перенаправляется на https://mama-daj.ru)
+- http://www.mama-daj.ru (автоматически перенаправляется на https://mama-daj.ru)
+
+### Архитектура
+
+Система состоит из трех сервисов:
+- **nginx** - reverse proxy с SSL терминацией (порты 80, 443)
+- **wordpress** - WordPress приложение (внутренний порт 80)
+- **db** - MySQL база данных (внутренний порт 3306)
 
 ## Остановка
 
