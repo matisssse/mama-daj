@@ -1,11 +1,12 @@
 # mama-daj
 
-WordPress сайт с MySQL в Docker Compose с nginx reverse proxy и HTTPS.
+WordPress сайт с MySQL в Docker Compose. Nginx работает на хосте в качестве reverse proxy с HTTPS.
 
 ## Требования
 
 - Docker
 - Docker Compose
+- nginx (установлен на хосте)
 - SSL сертификаты Let's Encrypt (расположены в `/etc/letsencrypt/live/mama-daj.ru/`)
 
 ## Настройка
@@ -24,19 +25,37 @@ nano .env
 
 ## Запуск
 
-### Перед первым запуском
+### Настройка nginx на хосте
 
-Убедитесь, что SSL сертификаты установлены в `/etc/letsencrypt/live/mama-daj.ru/`:
-- `fullchain.pem`
-- `privkey.pem`
+1. Скопируйте конфигурацию nginx на хост:
+```bash
+sudo cp nginx/nginx.conf /etc/nginx/sites-available/mama-daj.ru
+sudo ln -s /etc/nginx/sites-available/mama-daj.ru /etc/nginx/sites-enabled/
+```
 
-### Запуск сервисов
+2. Убедитесь, что SSL сертификаты установлены в `/etc/letsencrypt/live/mama-daj.ru/`:
+   - `fullchain.pem`
+   - `privkey.pem`
 
-Для запуска WordPress сайта выполните:
+3. Проверьте конфигурацию nginx:
+```bash
+sudo nginx -t
+```
+
+4. Перезапустите nginx:
+```bash
+sudo systemctl restart nginx
+```
+
+### Запуск Docker контейнеров
+
+Для запуска WordPress и MySQL выполните:
 
 ```bash
 docker compose up -d
 ```
+
+WordPress контейнер будет доступен на `localhost:8080`, а nginx на хосте проксирует запросы к нему.
 
 Сайт будет доступен по адресу:
 - https://mama-daj.ru (основной домен)
@@ -46,10 +65,10 @@ docker compose up -d
 
 ### Архитектура
 
-Система состоит из трех сервисов:
-- **nginx** - reverse proxy с SSL терминацией (порты 80, 443)
-- **wordpress** - WordPress приложение (внутренний порт 80)
-- **db** - MySQL база данных (внутренний порт 3306)
+Система состоит из следующих компонентов:
+- **nginx** (на хосте) - reverse proxy с SSL терминацией (порты 80, 443)
+- **wordpress** (Docker) - WordPress приложение (порт 8080 → 80)
+- **db** (Docker) - MySQL база данных (внутренний порт 3306)
 
 ## Остановка
 
