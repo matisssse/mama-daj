@@ -1,11 +1,13 @@
 # mama-daj
 
-WordPress сайт с MySQL в Docker Compose.
+WordPress сайт с MySQL в Docker Compose. Nginx работает на хосте в качестве reverse proxy с HTTPS.
 
 ## Требования
 
 - Docker
 - Docker Compose
+- nginx (установлен на хосте)
+- SSL сертификаты Let's Encrypt (расположены в `/etc/letsencrypt/live/mama-daj.ru/`)
 
 ## Настройка
 
@@ -23,13 +25,52 @@ nano .env
 
 ## Запуск
 
-Для запуска WordPress сайта выполните:
+### Настройка nginx на хосте
+
+1. Скопируйте конфигурацию nginx на хост:
+```bash
+sudo cp nginx/nginx.conf /etc/nginx/sites-available/mama-daj.ru
+sudo ln -s /etc/nginx/sites-available/mama-daj.ru /etc/nginx/sites-enabled/
+```
+
+2. Убедитесь, что SSL сертификаты установлены в `/etc/letsencrypt/live/mama-daj.ru/`:
+   - `fullchain.pem`
+   - `privkey.pem`
+
+3. Проверьте конфигурацию nginx:
+```bash
+sudo nginx -t
+```
+
+4. Перезапустите nginx:
+```bash
+sudo systemctl restart nginx
+```
+
+### Запуск Docker контейнеров
+
+Для запуска WordPress и MySQL выполните:
 
 ```bash
 docker compose up -d
 ```
 
-Сайт будет доступен по адресу: http://localhost:8080
+WordPress контейнер будет доступен на `localhost:8080`, а nginx на хосте проксирует запросы к нему.
+
+⚠️ **ВАЖНО:** Порт 8080 доступен только на localhost. Убедитесь, что firewall настроен так, чтобы порт 8080 не был доступен из внешней сети. Весь внешний трафик должен идти через nginx (порты 80/443) для обеспечения SSL и безопасности.
+
+Сайт будет доступен по адресу:
+- https://mama-daj.ru (основной домен)
+- http://mama-daj.ru (автоматически перенаправляется на HTTPS)
+- https://www.mama-daj.ru (автоматически перенаправляется на https://mama-daj.ru)
+- http://www.mama-daj.ru (автоматически перенаправляется на https://mama-daj.ru)
+
+### Архитектура
+
+Система состоит из следующих компонентов:
+- **nginx** (на хосте) - reverse proxy с SSL терминацией (порты 80, 443)
+- **wordpress** (Docker) - WordPress приложение (порт 8080 → 80)
+- **db** (Docker) - MySQL база данных (внутренний порт 3306)
 
 ## Остановка
 
@@ -78,3 +119,19 @@ docker compose down -v
 ⚠️ **ВНИМАНИЕ:** Файл `.env` содержит конфиденциальные данные и не должен коммититься в Git. Он уже добавлен в `.gitignore`.
 
 Перед развертыванием в продакшене обязательно измените все пароли по умолчанию на надежные!
+
+### Firewall
+
+Если используете ufw, настройте его так, чтобы порт 8080 не был доступен извне:
+
+```bash
+# Разрешить nginx
+sudo ufw allow 80/tcp
+sudo ufw allow 443/tcp
+
+# Убедитесь, что порт 8080 НЕ открыт для внешних подключений
+# (по умолчанию порт будет доступен только на localhost)
+sudo ufw status
+```
+
+Порт 8080 должен быть доступен только локально для nginx, все внешние запросы должны идти через порты 80/443.
